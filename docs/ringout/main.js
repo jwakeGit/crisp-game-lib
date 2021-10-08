@@ -87,10 +87,10 @@ options = {
   seed: 18,
 };
 
-/** @type { "idle" | "punching" | "blocking"} */
+/** @type { "idle" | "punching" | "blocking" | "hit" } */
 let pState;
 let px;
-/** @type { "idle" | "punching" | "blocking" | "defeated" } */
+/** @type { "idle" | "punching" | "blocking" | "hit" | "defeated" } */
 let eState;
 let ex;
 let leftGoalPos;
@@ -99,7 +99,7 @@ let rightGoalPos;
 function update() {
   if (!ticks) {
     px = 30;
-    ex = 50;
+    ex = 49;
     pState = "idle";
     eState = "idle";
     leftGoalPos = vec(10, 32);
@@ -109,6 +109,13 @@ function update() {
   rect(10, 36, 60, 20);
   char("e", leftGoalPos);
   char("e", rightGoalPos);
-  char("c", vec(px, 33));
-  char("h", vec(ex, 33));
+
+  if(pState == "idle"){
+    char("c", vec(px, 33));
+  }
+  
+  if(eState == "idle"){
+    char("h", vec(ex, 33));
+  }
+  
 }
