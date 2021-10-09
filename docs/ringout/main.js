@@ -87,14 +87,28 @@ options = {
   seed: 18,
 };
 
-/** @type { "idle" | "punching" | "blocking" | "hit" } */
-let pState;
-let px;
+const S = {
+  BLOCK_PRESS_THRESHOLD: 10,
+  PUNCH_DURATION: 15,
+  FLINCH_DURATION: 60,
+}
+
+// /** @type { "idle" | "punching" | "blocking" | "hit" } */
+
+
 /** @type { "idle" | "punching" | "blocking" | "hit" | "defeated" } */
 let eState;
+
 let ex;
 let leftGoalPos;
 let rightGoalPos;
+let px;
+
+let currAnim = "c";
+let animTimer;
+let pState;
+
+let pressDuration;
 
 function update() {
   if (!ticks) {
@@ -106,10 +120,16 @@ function update() {
   char("e", leftGoalPos);
   char("e", rightGoalPos);
 
+  
+  
+  MovePlayer();
+  char(currAnim, vec(px, 33));
+
+  /*
   if(pState == "idle"){
     char("c", vec(px, 33));
   }
-  
+  */
   if(eState == "idle"){
     char("h", vec(ex, 33));
   }
@@ -125,12 +145,47 @@ function Initialize(){
   rightGoalPos = vec(68, 32);
 
 
-  let state = machine.value
-  console.log(`current state: ${state}`)
-  state = machine.transition(state, 'startpunch')
-  console.log(`current state: ${state}`)
-  state = machine.transition(state, 'stoppunch')
-  console.log(`current state: ${state}`)
+  pState = machine.value
+  console.log(`current state: ${pState}`)
+  pState = machine.transition(pState, 'startblock')
+  console.log(`current state: ${pState}`)
+  //pState = machine.transition(pState, 'stoppunch')
+  //console.log(`current state: ${pState}`)
+}
+
+function MovePlayer(){
+  
+  // disable all input if mid-punch
+  if (pState == 'punch'){
+    animTimer--;
+    if (animTimer<= 0){
+      pState = machine.transition(pState, 'stoppunch');
+    }
+    return;
+  }
+
+  // Reset press duration upon button press
+  if (input.isJustPressed){
+    pressDuration = 0;
+  } 
+  
+  // Decide whether the button press is a punch or a block
+  if (input.isPressed){
+    pressDuration++;
+    if (pState == "idle" && pressDuration > S.BLOCK_PRESS_THRESHOLD){
+      pState = machine.transition(pState, 'startblock');
+    }
+  }
+  
+  if (input.isJustReleased){
+    if (pressDuration <= S.BLOCK_PRESS_THRESHOLD){
+      pState = machine.transition(pState, 'startpunch');
+    }
+    else if (pState == 'block'){
+      pState = machine.transition(pState, 'stopblock');
+    } 
+    pressDuration = 0;
+  }
 }
 
 
@@ -159,11 +214,18 @@ function createMachine(stateMachineDefinition) {
   return machine
 }
 
+
+// FSM Setup: Creating states, transitions, and actions
+// actions: onEnter() called when a state is entered
+//          onExit() called when a state is exited
+//          transition actions can be unique for each transition. 
+
 const machine = createMachine({
   initialState: 'idle',
   idle: {
     actions: {
       onEnter() {
+        currAnim = "c";
         console.log('idle: onEnter')
       },
       onExit() {
@@ -174,12 +236,14 @@ const machine = createMachine({
       startpunch: {
         target: 'punch',
         action() {
+          animTimer = S.PUNCH_DURATION;
           console.log('transition action for "startpunch" from idle')
         },
       },
       startblock: {
         target: 'block',
         action() {
+          currAnim = "b";
           console.log('transition action for "startblock" from idle')
         },
       },
@@ -194,6 +258,7 @@ const machine = createMachine({
   punch: {
     actions: {
       onEnter() {
+        currAnim = "a";
         console.log('punch: onEnter')
       },
       onExit() {
@@ -228,6 +293,7 @@ const machine = createMachine({
       stopblock: {
         target: 'idle',
         action() {
+          
           console.log('transition action for "stopblock" from block')
         },
       },
