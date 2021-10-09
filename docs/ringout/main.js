@@ -93,11 +93,30 @@ const S = {
   FLINCH_DURATION: 60,
 }
 
-// /** @type { "idle" | "punching" | "blocking" | "hit" } */
+/**
+ * @typedef {{
+  * pos: Vector,
+  * anims: string[],
+  * currAnim: number,
+  * animTimer: number
+  * state: string
+  * }} Fighter
+  */
+ 
+ /**
+  * @type { Fighter }
+  */
+ let player;
 
+ /**
+  * @type { Fighter }
+  */
+ let enemy;
 
-/** @type { "idle" | "punching" | "blocking" | "hit" | "defeated" } */
-let eState;
+ /**
+  * @type { Fighter }
+  */
+ let currFighter;
 
 let ex;
 let leftGoalPos;
@@ -121,45 +140,55 @@ function update() {
   char("e", rightGoalPos);
 
   
-  
+  currFighter = player;
   MovePlayer();
-  char(currAnim, vec(px, 33));
+  char(player.anims[player.currAnim], player.pos);
 
-  /*
-  if(pState == "idle"){
-    char("c", vec(px, 33));
-  }
-  */
-  if(eState == "idle"){
-    char("h", vec(ex, 33));
-  }
+  currFighter = enemy;
+  MoveEnemy();
+  char(enemy.anims[enemy.currAnim], enemy.pos);
   
 }
 
 function Initialize(){
-  px = 30;
-  ex = 49;
-  pState = "idle";
-  eState = "idle";
+  player = {
+    pos: vec(30, 33),
+    anims: ["a", "b", "c", "d"],
+    currAnim: 2,
+    animTimer: 0,
+    state: "idle"
+  };
+  currFighter = player;
+  player.state = pMachine.value;
+
+  enemy = {
+    pos: vec(49, 33),
+    anims: ["f", "g", "h", "i"],
+    currAnim: 2,
+    animTimer: 0,
+    state: "idle"
+  };
+  currFighter = enemy;
+  enemy.state = eMachine.value;
+  
   leftGoalPos = vec(10, 32);
   rightGoalPos = vec(68, 32);
 
 
-  pState = machine.value
-  console.log(`current state: ${pState}`)
-  pState = machine.transition(pState, 'startblock')
-  console.log(`current state: ${pState}`)
+  //pState = machine.value
+  //console.log(`current state: ${pState}`)
+  //pState = machine.transition(pState, 'startblock')
+  //console.log(`current state: ${pState}`)
   //pState = machine.transition(pState, 'stoppunch')
   //console.log(`current state: ${pState}`)
 }
 
 function MovePlayer(){
-  
   // disable all input if mid-punch
-  if (pState == 'punch'){
-    animTimer--;
-    if (animTimer<= 0){
-      pState = machine.transition(pState, 'stoppunch');
+  if (player.state == 'punch'){
+    player.animTimer--;
+    if (player.animTimer<= 0){
+      player.state = pMachine.transition(player.state, 'stoppunch');
     }
     return;
   }
@@ -172,22 +201,31 @@ function MovePlayer(){
   // Decide whether the button press is a punch or a block
   if (input.isPressed){
     pressDuration++;
-    if (pState == "idle" && pressDuration > S.BLOCK_PRESS_THRESHOLD){
-      pState = machine.transition(pState, 'startblock');
+    if (player.state == "idle" && pressDuration > S.BLOCK_PRESS_THRESHOLD){
+      player.state = pMachine.transition(player.state, 'startblock');
     }
   }
-  
+
+  // Decide whether the button release should start a punch
+  // or should stop blocking
   if (input.isJustReleased){
     if (pressDuration <= S.BLOCK_PRESS_THRESHOLD){
-      pState = machine.transition(pState, 'startpunch');
+      player.state = pMachine.transition(player.state, 'startpunch');
     }
-    else if (pState == 'block'){
-      pState = machine.transition(pState, 'stopblock');
+    else if (player.state == 'block'){
+      player.state = pMachine.transition(player.state, 'stopblock');
     } 
     pressDuration = 0;
   }
 }
 
+function MoveEnemy(){
+  // TO-DO: Add enemy AI
+  console.log(enemy.state);
+  if (enemy.state == "idle") enemy.state = eMachine.transition(enemy.state, 'startblock');
+  return;
+
+}
 
 function createMachine(stateMachineDefinition) {
   const machine = {
@@ -219,13 +257,18 @@ function createMachine(stateMachineDefinition) {
 // actions: onEnter() called when a state is entered
 //          onExit() called when a state is exited
 //          transition actions can be unique for each transition. 
+//
+// FSM will update whoever the currFighter variable is 
+// set to, enabling multi-character management.
 
-const machine = createMachine({
+
+const pMachine = createMachine({
   initialState: 'idle',
   idle: {
     actions: {
       onEnter() {
-        currAnim = "c";
+        currFighter.currAnim = 2;
+        //currAnim = "c";
         console.log('idle: onEnter')
       },
       onExit() {
@@ -236,14 +279,15 @@ const machine = createMachine({
       startpunch: {
         target: 'punch',
         action() {
-          animTimer = S.PUNCH_DURATION;
+          currFighter.animTimer = S.PUNCH_DURATION;
           console.log('transition action for "startpunch" from idle')
         },
       },
       startblock: {
         target: 'block',
         action() {
-          currAnim = "b";
+          currFighter.currAnim = 1;
+          //currAnim = "b";
           console.log('transition action for "startblock" from idle')
         },
       },
@@ -258,7 +302,9 @@ const machine = createMachine({
   punch: {
     actions: {
       onEnter() {
-        currAnim = "a";
+        currFighter.currAnim = 0;
+        currFighter.pos.x += 1;
+        //currAnim = "a";
         console.log('punch: onEnter')
       },
       onExit() {
@@ -319,3 +365,104 @@ const machine = createMachine({
   },
 })
 
+const eMachine = createMachine({
+  initialState: 'idle',
+  idle: {
+    actions: {
+      onEnter() {
+        currFighter.currAnim = 2;
+        //currAnim = "c";
+        console.log('idle: onEnter')
+      },
+      onExit() {
+        console.log('idle: onExit')
+      },
+    },
+    transitions: {
+      startpunch: {
+        target: 'punch',
+        action() {
+          currFighter.animTimer = S.PUNCH_DURATION;
+          console.log('transition action for "startpunch" from idle')
+        },
+      },
+      startblock: {
+        target: 'block',
+        action() {
+          currFighter.currAnim = 1;
+          //currAnim = "b";
+          console.log('transition action for "startblock" from idle')
+        },
+      },
+      startflinch: {
+        target: 'flinch',
+        action() {
+          console.log('transition action for "startflinch" from idle')
+        },
+      },
+    },
+  },
+  punch: {
+    actions: {
+      onEnter() {
+        currFighter.currAnim = 0;
+        //currAnim = "a";
+        console.log('punch: onEnter')
+      },
+      onExit() {
+        console.log('punch: onExit')
+      },
+    },
+    transitions: {
+      stoppunch: {
+        target: 'idle',
+        action() {
+          console.log('transition action for "stoppunch" from punch')
+        },
+      },
+      isblocked: {
+        target: 'flinch',
+        action() {
+          console.log('transition action for "isblocked" from punch')
+        },
+      },
+    },
+  },
+  block: {
+    actions: {
+      onEnter() {
+        console.log('block: onEnter')
+      },
+      onExit() {
+        console.log('block: onExit')
+      },
+    },
+    transitions: {
+      stopblock: {
+        target: 'idle',
+        action() {
+          
+          console.log('transition action for "stopblock" from block')
+        },
+      },
+    },
+  },
+  flinch: {
+    actions: {
+      onEnter() {
+        console.log('flinch: onEnter')
+      },
+      onExit() {
+        console.log('flinch: onExit')
+      },
+    },
+    transitions: {
+      stopflinch: {
+        target: 'idle',
+        action() {
+          console.log('transition action for "stopflinch" from flinch')
+        },
+      },
+    },
+  },
+})
