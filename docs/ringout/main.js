@@ -90,7 +90,20 @@ options = {
 const S = {
   BLOCK_PRESS_THRESHOLD: 10,
   PUNCH_DURATION: 15,
-  FLINCH_DURATION: 60,
+  BLOCKED_FLINCH_DURATION: 2,
+  PUNCHED_FLINCH_DURATION: 10,
+  FLINCH_MOVE_SPEED: 1,
+  BLOCK_MOVE_DISTANCE: 1,
+  PUNCH_MOVE_DISTANCE: 2,
+}
+
+const AI = {
+  PUNCH_WEIGHT: 2,
+  BLOCK_WEIGHT: 1,
+  BLOCK_MIN_TIME: 10,
+  BLOCK_MAX_TIME: 60,
+  IDLE_MIN_TIME: 10,
+  IDLE_MAX_TIME: 30,
 }
 
 /**
@@ -100,6 +113,7 @@ const S = {
   * currAnim: number,
   * animTimer: number
   * state: string
+  * moveDir: number
   * }} Fighter
   */
  
@@ -119,6 +133,7 @@ const S = {
  let currFighter;
 
 let ex;
+let enemyTimer;
 let leftGoalPos;
 let rightGoalPos;
 let px;
@@ -139,15 +154,41 @@ function update() {
   char("e", leftGoalPos);
   char("e", rightGoalPos);
 
-  
-  currFighter = player;
-  MovePlayer();
-  char(player.anims[player.currAnim], player.pos);
-
   currFighter = enemy;
   MoveEnemy();
   char(enemy.anims[enemy.currAnim], enemy.pos);
+
+  currFighter = player;
+  MovePlayer();
+  let collision = char(player.anims[player.currAnim], player.pos);
   
+  if (collision.isColliding.char.g){
+    player.state = pMachine.transition('punch', 'isblocked');
+    enemy.pos.x += S.BLOCKED_FLINCH_DURATION;
+  }
+  else if (collision.isColliding.char.h){
+    if (player.state == 'punch'){
+      currFighter = enemy;
+      enemy.state = eMachine.transition('idle', 'startflinch');
+      currFighter = player;
+    }
+  }
+  else if (collision.isColliding.char.f){
+    if (player.state == 'idle'){
+      player.state = pMachine.transition('idle', 'startflinch');
+    } else {
+      currFighter = enemy;
+      enemy.state = eMachine.transition('punch', 'isblocked');
+    }
+    if (player.state == 'punch'){
+      currFighter = player;
+      player.state = pMachine.transition('punch', 'isblocked');
+    } else if (player.state == 'block'){
+
+    }
+  }
+
+
 }
 
 function Initialize(){
@@ -156,7 +197,8 @@ function Initialize(){
     anims: ["a", "b", "c", "d"],
     currAnim: 2,
     animTimer: 0,
-    state: "idle"
+    state: "idle",
+    moveDir: 1,
   };
   currFighter = player;
   player.state = pMachine.value;
@@ -166,13 +208,15 @@ function Initialize(){
     anims: ["f", "g", "h", "i"],
     currAnim: 2,
     animTimer: 0,
-    state: "idle"
+    state: "idle",
+    moveDir: -1,
   };
   currFighter = enemy;
   enemy.state = eMachine.value;
   
   leftGoalPos = vec(10, 32);
   rightGoalPos = vec(68, 32);
+  enemyTimer = 0;
 
 
   //pState = machine.value
@@ -188,9 +232,23 @@ function MovePlayer(){
   if (player.state == 'punch'){
     player.animTimer--;
     if (player.animTimer<= 0){
-      player.state = pMachine.transition(player.state, 'stoppunch');
+      player.state = pMachine.transition(player.state, 'startidle');
     }
     return;
+  }
+
+  // disable input if player is flinching
+  if (player.state == 'flinch'){
+    player.animTimer--;
+    player.pos.x -= S.FLINCH_MOVE_SPEED;
+    if (player.animTimer<= 0){
+      player.state = pMachine.transition(player.state, 'startidle');
+    }
+    return;
+  }
+
+  if (player.state == 'block'){
+    //player.pos.x -= S.BLOCK_MOVE_SPEED;
   }
 
   // Reset press duration upon button press
@@ -213,7 +271,7 @@ function MovePlayer(){
       player.state = pMachine.transition(player.state, 'startpunch');
     }
     else if (player.state == 'block'){
-      player.state = pMachine.transition(player.state, 'stopblock');
+      player.state = pMachine.transition(player.state, 'startidle');
     } 
     pressDuration = 0;
   }
@@ -221,8 +279,50 @@ function MovePlayer(){
 
 function MoveEnemy(){
   // TO-DO: Add enemy AI
-  console.log(enemy.state);
-  if (enemy.state == "idle") enemy.state = eMachine.transition(enemy.state, 'startblock');
+
+  if (enemy.state == 'punch'){
+    enemy.animTimer--;
+    if (enemy.animTimer<= 0){
+      enemy.state = eMachine.transition(enemy.state, 'startidle');
+    }
+    return;
+  }
+
+  // disable input if player is flinching
+  if (enemy.state == 'flinch'){
+    enemy.animTimer--;
+    enemy.pos.x += S.FLINCH_MOVE_SPEED;
+    if (enemy.animTimer<= 0){
+      enemy.state = eMachine.transition(enemy.state, 'startidle');
+    }
+    return;
+  }
+
+  enemyTimer--;
+
+  if (enemyTimer <= 0){
+    if (enemy.state != 'idle'){
+      enemy.state = eMachine.transition(enemy.state, 'startidle');
+      enemyTimer = rndi(AI.IDLE_MIN_TIME, AI.IDLE_MAX_TIME);
+    }
+    else {
+      let rand = rndi(0, AI.PUNCH_WEIGHT + AI.BLOCK_WEIGHT);
+      if (rand < AI.PUNCH_WEIGHT){
+        enemy.state = eMachine.transition('idle', 'startpunch');
+        enemyTimer = S.PUNCH_DURATION;
+      } else {
+        enemy.state = eMachine.transition('idle', 'startblock');
+        enemyTimer = rndi(AI.BLOCK_MIN_TIME, AI.BLOCK_MAX_TIME)
+      }
+    }
+  }
+
+    
+  
+
+
+  //console.log(enemy.state);
+  //if (enemy.state == "idle") enemy.state = eMachine.transition(enemy.state, 'startblock');
   return;
 
 }
@@ -286,7 +386,7 @@ const pMachine = createMachine({
       startblock: {
         target: 'block',
         action() {
-          currFighter.currAnim = 1;
+          
           //currAnim = "b";
           console.log('transition action for "startblock" from idle')
         },
@@ -294,6 +394,8 @@ const pMachine = createMachine({
       startflinch: {
         target: 'flinch',
         action() {
+          currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
+          play("explosion");
           console.log('transition action for "startflinch" from idle')
         },
       },
@@ -303,7 +405,7 @@ const pMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 0;
-        currFighter.pos.x += 1;
+        currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
         console.log('punch: onEnter')
       },
@@ -312,7 +414,7 @@ const pMachine = createMachine({
       },
     },
     transitions: {
-      stoppunch: {
+      startidle: {
         target: 'idle',
         action() {
           console.log('transition action for "stoppunch" from punch')
@@ -321,6 +423,8 @@ const pMachine = createMachine({
       isblocked: {
         target: 'flinch',
         action() {
+          currFighter.animTimer = S.BLOCKED_FLINCH_DURATION;
+          play("select");
           console.log('transition action for "isblocked" from punch')
         },
       },
@@ -329,6 +433,7 @@ const pMachine = createMachine({
   block: {
     actions: {
       onEnter() {
+        currFighter.currAnim = 1;
         console.log('block: onEnter')
       },
       onExit() {
@@ -336,7 +441,7 @@ const pMachine = createMachine({
       },
     },
     transitions: {
-      stopblock: {
+      startidle: {
         target: 'idle',
         action() {
           
@@ -348,6 +453,7 @@ const pMachine = createMachine({
   flinch: {
     actions: {
       onEnter() {
+        currFighter.currAnim = 3;
         console.log('flinch: onEnter')
       },
       onExit() {
@@ -355,7 +461,7 @@ const pMachine = createMachine({
       },
     },
     transitions: {
-      stopflinch: {
+      startidle: {
         target: 'idle',
         action() {
           console.log('transition action for "stopflinch" from flinch')
@@ -364,6 +470,8 @@ const pMachine = createMachine({
     },
   },
 })
+
+// Enemy FSM
 
 const eMachine = createMachine({
   initialState: 'idle',
@@ -389,7 +497,7 @@ const eMachine = createMachine({
       startblock: {
         target: 'block',
         action() {
-          currFighter.currAnim = 1;
+          
           //currAnim = "b";
           console.log('transition action for "startblock" from idle')
         },
@@ -397,6 +505,7 @@ const eMachine = createMachine({
       startflinch: {
         target: 'flinch',
         action() {
+          currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
           console.log('transition action for "startflinch" from idle')
         },
       },
@@ -406,6 +515,7 @@ const eMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 0;
+        currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
         console.log('punch: onEnter')
       },
@@ -414,7 +524,7 @@ const eMachine = createMachine({
       },
     },
     transitions: {
-      stoppunch: {
+      startidle: {
         target: 'idle',
         action() {
           console.log('transition action for "stoppunch" from punch')
@@ -423,6 +533,8 @@ const eMachine = createMachine({
       isblocked: {
         target: 'flinch',
         action() {
+          currFighter.animTimer = S.BLOCKED_FLINCH_DURATION;
+          play("select");
           console.log('transition action for "isblocked" from punch')
         },
       },
@@ -431,6 +543,7 @@ const eMachine = createMachine({
   block: {
     actions: {
       onEnter() {
+        currFighter.currAnim = 1;
         console.log('block: onEnter')
       },
       onExit() {
@@ -438,7 +551,7 @@ const eMachine = createMachine({
       },
     },
     transitions: {
-      stopblock: {
+      startidle: {
         target: 'idle',
         action() {
           
@@ -450,6 +563,7 @@ const eMachine = createMachine({
   flinch: {
     actions: {
       onEnter() {
+        currFighter.currAnim = 3;
         console.log('flinch: onEnter')
       },
       onExit() {
@@ -457,7 +571,7 @@ const eMachine = createMachine({
       },
     },
     transitions: {
-      stopflinch: {
+      startidle: {
         target: 'idle',
         action() {
           console.log('transition action for "stopflinch" from flinch')
