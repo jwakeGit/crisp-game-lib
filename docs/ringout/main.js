@@ -90,11 +90,12 @@ options = {
 const S = {
   BLOCK_PRESS_THRESHOLD: 10,
   PUNCH_DURATION: 15,
-  BLOCKED_FLINCH_DURATION: 2,
+  BLOCKED_FLINCH_DURATION: 1,
   PUNCHED_FLINCH_DURATION: 10,
   FLINCH_MOVE_SPEED: 1,
   BLOCK_MOVE_DISTANCE: 1,
   PUNCH_MOVE_DISTANCE: 2,
+  WALK_SPEED: 0.1,
 }
 
 const AI = {
@@ -247,8 +248,13 @@ function MovePlayer(){
     return;
   }
 
-  if (player.state == 'block'){
-    //player.pos.x -= S.BLOCK_MOVE_SPEED;
+  if (player.state == 'idle'){
+    color("transparent");
+    let coll = box(player.pos.x + 3, player.pos.y, 1);
+    if (!(coll.isColliding.char.f || coll.isColliding.char.g || coll.isColliding.char.h)){
+      player.pos.x += S.WALK_SPEED;
+    }
+    color("black");
   }
 
   // Reset press duration upon button press
@@ -296,6 +302,15 @@ function MoveEnemy(){
       enemy.state = eMachine.transition(enemy.state, 'startidle');
     }
     return;
+  }
+
+  if (enemy.state == 'idle'){
+    color("transparent");
+    let coll = box(enemy.pos.x - 3, enemy.pos.y, 1);
+    if (!(coll.isColliding.char.a || coll.isColliding.char.b || coll.isColliding.char.c)){
+      enemy.pos.x -= S.WALK_SPEED;
+    }
+    color("black");
   }
 
   enemyTimer--;
@@ -405,7 +420,7 @@ const pMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 0;
-        currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
+        //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
         console.log('punch: onEnter')
       },
@@ -506,6 +521,7 @@ const eMachine = createMachine({
         target: 'flinch',
         action() {
           currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
+          play("explosion");
           console.log('transition action for "startflinch" from idle')
         },
       },
@@ -515,7 +531,7 @@ const eMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 0;
-        currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
+        //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
         console.log('punch: onEnter')
       },
