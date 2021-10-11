@@ -78,6 +78,23 @@ pp ll
  p   l
   p
 `,
+//char j
+`
+  ll
+  ll
+ ll
+l bL
+l bbL
+ b b
+`,
+//char k
+`
+  ll
+  ll
+   ll
+  Lp l
+ Lpp l
+  p p`
 ];
 
 options = {
@@ -138,6 +155,8 @@ let enemyTimer;
 let leftGoalPos;
 let rightGoalPos;
 let px;
+let playerStep;
+let enemyStep;
 
 let currAnim = "c";
 let animTimer;
@@ -157,11 +176,14 @@ function update() {
 
   currFighter = enemy;
   MoveEnemy();
-  char(enemy.anims[enemy.currAnim], enemy.pos);
+  /**if((enemy.currAnim == 2) && (enemyStep > 15))**/ char(enemy.anims[enemy.currAnim], enemy.pos);
+  //else if (enemy.currAnim == 2) char("k", enemy.pos);
 
   currFighter = player;
   MovePlayer();
   let collision = char(player.anims[player.currAnim], player.pos);
+  //if((player.currAnim == 2) && (playerStep < 15)) collision = char(player.anims[player.currAnim], player.pos);
+  //else if(player.currAnim == 2) collision = char("k", player.pos)
   
   if (collision.isColliding.char.g){
     player.state = pMachine.transition('punch', 'isblocked');
@@ -189,13 +211,20 @@ function update() {
     }
   }
 
+  if(player.pos.x < 14){
+    play("lucky");
+    end();
+  }
 
+  if(enemy.pos.x > 68){
+    enemy.pos.x = 68;
+  }
 }
 
 function Initialize(){
   player = {
     pos: vec(30, 33),
-    anims: ["a", "b", "c", "d"],
+    anims: ["a", "b", "c", "d", "j"],
     currAnim: 2,
     animTimer: 0,
     state: "idle",
@@ -206,7 +235,7 @@ function Initialize(){
 
   enemy = {
     pos: vec(49, 33),
-    anims: ["f", "g", "h", "i"],
+    anims: ["f", "g", "h", "i", "k"],
     currAnim: 2,
     animTimer: 0,
     state: "idle",
@@ -214,6 +243,9 @@ function Initialize(){
   };
   currFighter = enemy;
   enemy.state = eMachine.value;
+
+  playerStep = 15;
+  enemyStep = 15;
   
   leftGoalPos = vec(10, 32);
   rightGoalPos = vec(68, 32);
@@ -249,6 +281,11 @@ function MovePlayer(){
   }
 
   if (player.state == 'idle'){
+    playerStep--;
+    if(playerStep <= 0){
+      //player.currAnim = 9;
+      playerStep = 15;
+    }
     color("transparent");
     let coll = box(player.pos.x + 3, player.pos.y, 1);
     if (!(coll.isColliding.char.f || coll.isColliding.char.g || coll.isColliding.char.h)){
@@ -283,6 +320,7 @@ function MovePlayer(){
   }
 }
 
+
 function MoveEnemy(){
   // TO-DO: Add enemy AI
 
@@ -305,6 +343,11 @@ function MoveEnemy(){
   }
 
   if (enemy.state == 'idle'){
+    enemyStep--;
+    if(enemyStep <= 0){
+      //enemy.currAnim = 10;
+      enemyStep = 15;
+    }
     color("transparent");
     let coll = box(enemy.pos.x - 3, enemy.pos.y, 1);
     if (!(coll.isColliding.char.a || coll.isColliding.char.b || coll.isColliding.char.c)){
@@ -349,7 +392,7 @@ function createMachine(stateMachineDefinition) {
       const currentStateDefinition = stateMachineDefinition[currentState]
       const destinationTransition = currentStateDefinition.transitions[event]
       if (!destinationTransition) {
-        return
+        return 
       }
       const destinationState = destinationTransition.target
       const destinationStateDefinition =
@@ -382,6 +425,7 @@ const pMachine = createMachine({
   idle: {
     actions: {
       onEnter() {
+        playerStep = 15;
         currFighter.currAnim = 2;
         //currAnim = "c";
         console.log('idle: onEnter')
@@ -419,6 +463,7 @@ const pMachine = createMachine({
   punch: {
     actions: {
       onEnter() {
+        currFighter.pos.x++;
         currFighter.currAnim = 0;
         //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
@@ -469,6 +514,7 @@ const pMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 3;
+        addScore(-10);
         console.log('flinch: onEnter')
       },
       onExit() {
@@ -494,6 +540,7 @@ const eMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 2;
+        enemyStep = 15;
         //currAnim = "c";
         console.log('idle: onEnter')
       },
@@ -520,6 +567,7 @@ const eMachine = createMachine({
       startflinch: {
         target: 'flinch',
         action() {
+          addScore(10);
           currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
           play("explosion");
           console.log('transition action for "startflinch" from idle')
@@ -530,6 +578,7 @@ const eMachine = createMachine({
   punch: {
     actions: {
       onEnter() {
+        currFighter.pos.x--;
         currFighter.currAnim = 0;
         //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
