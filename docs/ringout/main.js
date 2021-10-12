@@ -113,6 +113,9 @@ const S = {
   BLOCK_MOVE_DISTANCE: 1,
   PUNCH_MOVE_DISTANCE: 2,
   WALK_SPEED: 0.1,
+  LEFT_BOUND: 14,
+  RIGHT_BOUND: 64,
+  PUNCH_COOLDOWN: 15,
 }
 
 const AI = {
@@ -122,6 +125,7 @@ const AI = {
   BLOCK_MAX_TIME: 60,
   IDLE_MIN_TIME: 10,
   IDLE_MAX_TIME: 30,
+  FIGHT_DISTANCE: 8,
 }
 
 /**
@@ -157,10 +161,13 @@ let rightGoalPos;
 let px;
 let playerStep;
 let enemyStep;
+let playerSpawn;
+let enemySpawn;
 
 let currAnim = "c";
 let animTimer;
 let pState;
+let respawns;
 
 let pressDuration;
 
@@ -170,7 +177,7 @@ function update() {
     
   }
   color("black");
-  rect(10, 36, 60, 20);
+  rect(leftGoalPos.x, 36, rightGoalPos.x - leftGoalPos.x +2, 20);
   char("e", leftGoalPos);
   char("e", rightGoalPos);
 
@@ -211,19 +218,39 @@ function update() {
     }
   }
 
-  if(player.pos.x < 14){
+  if(player.pos.x < leftGoalPos.x + 4){
     play("lucky");
     end();
   }
 
-  if(enemy.pos.x > 68){
-    enemy.pos.x = 68;
+  // Player kills enemy
+  if(enemy.pos.x > rightGoalPos.x){
+    addScore(100);
+    play("coin");
+    color("red");
+    particle(rightGoalPos.x, rightGoalPos.y-2, 16, 1.5, 0, 2*PI);
+    color("black");
+    
+    
+    if (respawns <= 10){
+      respawns++;
+      enemySpawn -= 1;
+      playerSpawn += 1;
+      
+      leftGoalPos.x += 1;
+      rightGoalPos.x -= 1;
+    }
+
+    enemy.pos.x = enemySpawn;
+    player.pos.x = playerSpawn;
   }
 }
 
 function Initialize(){
+  playerSpawn = 20;
+  enemySpawn = 58;
   player = {
-    pos: vec(30, 33),
+    pos: vec(playerSpawn, 33),
     anims: ["a", "b", "c", "d", "j"],
     currAnim: 2,
     animTimer: 0,
@@ -234,7 +261,7 @@ function Initialize(){
   player.state = pMachine.value;
 
   enemy = {
-    pos: vec(49, 33),
+    pos: vec(enemySpawn, 33),
     anims: ["f", "g", "h", "i", "k"],
     currAnim: 2,
     animTimer: 0,
@@ -246,9 +273,11 @@ function Initialize(){
 
   playerStep = 15;
   enemyStep = 15;
+
+  respawns = 0;
   
-  leftGoalPos = vec(10, 32);
-  rightGoalPos = vec(68, 32);
+  leftGoalPos = vec(S.LEFT_BOUND, 32);
+  rightGoalPos = vec(S.RIGHT_BOUND-2, 32);
   enemyTimer = 0;
 
 
@@ -261,18 +290,21 @@ function Initialize(){
 }
 
 function MovePlayer(){
+  player.animTimer--;
+  
   // disable all input if mid-punch
   if (player.state == 'punch'){
-    player.animTimer--;
+    //player.animTimer--;
     if (player.animTimer<= 0){
       player.state = pMachine.transition(player.state, 'startidle');
+      player.animTimer = S.PUNCH_COOLDOWN;
     }
     return;
   }
 
   // disable input if player is flinching
   if (player.state == 'flinch'){
-    player.animTimer--;
+    //player.animTimer--;
     player.pos.x -= S.FLINCH_MOVE_SPEED;
     if (player.animTimer<= 0){
       player.state = pMachine.transition(player.state, 'startidle');
@@ -311,7 +343,9 @@ function MovePlayer(){
   // or should stop blocking
   if (input.isJustReleased){
     if (pressDuration <= S.BLOCK_PRESS_THRESHOLD){
-      player.state = pMachine.transition(player.state, 'startpunch');
+      if (player.animTimer <= 0){
+        player.state = pMachine.transition(player.state, 'startpunch');
+      }
     }
     else if (player.state == 'block'){
       player.state = pMachine.transition(player.state, 'startidle');
@@ -342,6 +376,13 @@ function MoveEnemy(){
     return;
   }
 
+  if (enemy.pos.x-player.pos.x > AI.FIGHT_DISTANCE){
+    if (enemy.state != 'idle'){
+      enemy.state = eMachine.transition(enemy.state, 'startidle');
+    }
+    
+  }
+
   if (enemy.state == 'idle'){
     enemyStep--;
     if(enemyStep <= 0){
@@ -349,7 +390,7 @@ function MoveEnemy(){
       enemyStep = 15;
     }
     color("transparent");
-    let coll = box(enemy.pos.x - 3, enemy.pos.y, 1);
+    let coll = box(enemy.pos.x - 2, enemy.pos.y, 2, 3);
     if (!(coll.isColliding.char.a || coll.isColliding.char.b || coll.isColliding.char.c)){
       enemy.pos.x -= S.WALK_SPEED;
     }
@@ -428,10 +469,10 @@ const pMachine = createMachine({
         playerStep = 15;
         currFighter.currAnim = 2;
         //currAnim = "c";
-        console.log('idle: onEnter')
+        //console.log('idle: onEnter')
       },
       onExit() {
-        console.log('idle: onExit')
+        // console.log('idle: onExit')
       },
     },
     transitions: {
@@ -439,7 +480,7 @@ const pMachine = createMachine({
         target: 'punch',
         action() {
           currFighter.animTimer = S.PUNCH_DURATION;
-          console.log('transition action for "startpunch" from idle')
+          // console.log('transition action for "startpunch" from idle')
         },
       },
       startblock: {
@@ -447,15 +488,19 @@ const pMachine = createMachine({
         action() {
           
           //currAnim = "b";
-          console.log('transition action for "startblock" from idle')
+          // console.log('transition action for "startblock" from idle')
         },
       },
       startflinch: {
         target: 'flinch',
         action() {
+          addScore(-10);
           currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
+          color("red");
+          particle(player.pos.x, player.pos.y-2, 4, 1.5, PI, PI/3);
+          color("black");
           play("explosion");
-          console.log('transition action for "startflinch" from idle')
+          // console.log('transition action for "startflinch" from idle')
         },
       },
     },
@@ -463,21 +508,23 @@ const pMachine = createMachine({
   punch: {
     actions: {
       onEnter() {
-        currFighter.pos.x++;
+        if (enemy.pos.x-player.pos.x > 4){
+          currFighter.pos.x++;
+        }
         currFighter.currAnim = 0;
         //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
-        console.log('punch: onEnter')
+        // console.log('punch: onEnter')
       },
       onExit() {
-        console.log('punch: onExit')
+        // console.log('punch: onExit')
       },
     },
     transitions: {
       startidle: {
         target: 'idle',
         action() {
-          console.log('transition action for "stoppunch" from punch')
+          // console.log('transition action for "stoppunch" from punch')
         },
       },
       isblocked: {
@@ -485,7 +532,7 @@ const pMachine = createMachine({
         action() {
           currFighter.animTimer = S.BLOCKED_FLINCH_DURATION;
           play("select");
-          console.log('transition action for "isblocked" from punch')
+          // console.log('transition action for "isblocked" from punch')
         },
       },
     },
@@ -494,10 +541,10 @@ const pMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 1;
-        console.log('block: onEnter')
+        // console.log('block: onEnter')
       },
       onExit() {
-        console.log('block: onExit')
+        // console.log('block: onExit')
       },
     },
     transitions: {
@@ -505,7 +552,7 @@ const pMachine = createMachine({
         target: 'idle',
         action() {
           
-          console.log('transition action for "stopblock" from block')
+          // console.log('transition action for "stopblock" from block')
         },
       },
     },
@@ -514,18 +561,17 @@ const pMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 3;
-        addScore(-10);
-        console.log('flinch: onEnter')
+        // console.log('flinch: onEnter')
       },
       onExit() {
-        console.log('flinch: onExit')
+        // console.log('flinch: onExit')
       },
     },
     transitions: {
       startidle: {
         target: 'idle',
         action() {
-          console.log('transition action for "stopflinch" from flinch')
+          // console.log('transition action for "stopflinch" from flinch')
         },
       },
     },
@@ -542,10 +588,10 @@ const eMachine = createMachine({
         currFighter.currAnim = 2;
         enemyStep = 15;
         //currAnim = "c";
-        console.log('idle: onEnter')
+        // console.log('idle: onEnter')
       },
       onExit() {
-        console.log('idle: onExit')
+        // console.log('idle: onExit')
       },
     },
     transitions: {
@@ -553,7 +599,7 @@ const eMachine = createMachine({
         target: 'punch',
         action() {
           currFighter.animTimer = S.PUNCH_DURATION;
-          console.log('transition action for "startpunch" from idle')
+          // console.log('transition action for "startpunch" from idle')
         },
       },
       startblock: {
@@ -561,16 +607,19 @@ const eMachine = createMachine({
         action() {
           
           //currAnim = "b";
-          console.log('transition action for "startblock" from idle')
+          // console.log('transition action for "startblock" from idle')
         },
       },
       startflinch: {
         target: 'flinch',
         action() {
-          addScore(10);
           currFighter.animTimer = S.PUNCHED_FLINCH_DURATION;
+          addScore(10);
+          color("red");
+          particle(enemy.pos.x+4, enemy.pos.y-2, 4, 1.5, 0, PI/3);
+          color("black");
           play("explosion");
-          console.log('transition action for "startflinch" from idle')
+          // console.log('transition action for "startflinch" from idle')
         },
       },
     },
@@ -578,21 +627,23 @@ const eMachine = createMachine({
   punch: {
     actions: {
       onEnter() {
-        currFighter.pos.x--;
+        if (enemy.pos.x-player.pos.x > 4){
+          currFighter.pos.x--;
+        }
         currFighter.currAnim = 0;
         //currFighter.pos.x += S.PUNCH_MOVE_DISTANCE * currFighter.moveDir;
         //currAnim = "a";
-        console.log('punch: onEnter')
+        // console.log('punch: onEnter')
       },
       onExit() {
-        console.log('punch: onExit')
+        // console.log('punch: onExit')
       },
     },
     transitions: {
       startidle: {
         target: 'idle',
         action() {
-          console.log('transition action for "stoppunch" from punch')
+          // console.log('transition action for "stoppunch" from punch')
         },
       },
       isblocked: {
@@ -600,7 +651,7 @@ const eMachine = createMachine({
         action() {
           currFighter.animTimer = S.BLOCKED_FLINCH_DURATION;
           play("select");
-          console.log('transition action for "isblocked" from punch')
+          // console.log('transition action for "isblocked" from punch')
         },
       },
     },
@@ -609,10 +660,10 @@ const eMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 1;
-        console.log('block: onEnter')
+        // console.log('block: onEnter')
       },
       onExit() {
-        console.log('block: onExit')
+        // console.log('block: onExit')
       },
     },
     transitions: {
@@ -620,7 +671,7 @@ const eMachine = createMachine({
         target: 'idle',
         action() {
           
-          console.log('transition action for "stopblock" from block')
+          // console.log('transition action for "stopblock" from block')
         },
       },
     },
@@ -629,17 +680,17 @@ const eMachine = createMachine({
     actions: {
       onEnter() {
         currFighter.currAnim = 3;
-        console.log('flinch: onEnter')
+        // console.log('flinch: onEnter')
       },
       onExit() {
-        console.log('flinch: onExit')
+        // console.log('flinch: onExit')
       },
     },
     transitions: {
       startidle: {
         target: 'idle',
         action() {
-          console.log('transition action for "stopflinch" from flinch')
+          // console.log('transition action for "stopflinch" from flinch')
         },
       },
     },
