@@ -176,8 +176,9 @@ function update() {
     Initialize();
     
   }
-  color("black");
+  color("light_black");
   rect(leftGoalPos.x, 36, rightGoalPos.x - leftGoalPos.x +2, 20);
+  color("black");
   char("e", leftGoalPos);
   char("e", rightGoalPos);
 
