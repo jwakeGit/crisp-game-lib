@@ -102,6 +102,10 @@ options = {
   isPlayingBgm: true,
   isReplayEnabled: true,
   seed: 18,
+  theme: "simple",
+  //isCapturing: true,
+  //isCapturingGameCanvasOnly: true,
+  //xcaptureCanvasScale: 2
 };
 
 const S = {

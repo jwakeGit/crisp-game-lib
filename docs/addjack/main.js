@@ -27,6 +27,8 @@ options = {
   isPlayingBgm: true,
   isReplayEnabled: true,
   seed: 23,
+  isCapturing: true,
+  isCapturingGameCanvasOnly: true,
 };
 
 /**
